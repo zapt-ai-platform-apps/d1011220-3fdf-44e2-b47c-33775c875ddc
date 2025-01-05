@@ -7,7 +7,6 @@ export default function ContactForm({ onContactAdded }) {
     phone: '',
     email: '',
     birthday: '',
-    notes: '',
   });
   const [loading, setLoading] = useState(false);
 
@@ -27,7 +26,6 @@ export default function ContactForm({ onContactAdded }) {
         phone: '',
         email: '',
         birthday: '',
-        notes: '',
       });
       onContactAdded();
       console.log('Contact added successfully');
@@ -74,13 +72,6 @@ export default function ContactForm({ onContactAdded }) {
           onChange={handleChange}
         />
       </div>
-      <textarea
-        name="notes"
-        placeholder="Notes"
-        className="border p-2 rounded w-full mt-4 box-border"
-        value={formData.notes}
-        onChange={handleChange}
-      ></textarea>
       <button
         type="submit"
         disabled={loading}

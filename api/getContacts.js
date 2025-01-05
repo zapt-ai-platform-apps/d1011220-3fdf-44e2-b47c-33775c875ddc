@@ -2,7 +2,7 @@ import * as Sentry from '@sentry/node';
 import { authenticateUser } from './_apiUtils.js';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
-import { contacts } from '../drizzle/schema.js';
+import { contacts, contactNotes } from '../drizzle/schema.js';
 import { eq } from 'drizzle-orm';
 
 Sentry.init({
@@ -28,8 +28,35 @@ export default async function handler(req, res) {
     const client = postgres(process.env.COCKROACH_DB_URL);
     const db = drizzle(client);
 
-    const result = await db.select().from(contacts).where(eq(contacts.userId, user.id));
-    res.status(200).json(result);
+    const contactsData = await db
+      .select()
+      .from(contacts)
+      .leftJoin(contactNotes, eq(contacts.id, contactNotes.contactId))
+      .where(eq(contacts.userId, user.id));
+
+    // Transform data to group notes per contact
+    const contactsMap = new Map();
+
+    contactsData.forEach((row) => {
+      const contactId = row.contacts.id;
+      if (!contactsMap.has(contactId)) {
+        contactsMap.set(contactId, {
+          ...row.contacts,
+          notes: [],
+        });
+      }
+      if (row.contactNotes && row.contactNotes.id) {
+        contactsMap.get(contactId).notes.push({
+          id: row.contactNotes.id,
+          note: row.contactNotes.note,
+          createdAt: row.contactNotes.createdAt,
+        });
+      }
+    });
+
+    const contactsList = Array.from(contactsMap.values());
+
+    res.status(200).json(contactsList);
   } catch (error) {
     Sentry.captureException(error);
     console.error('Error in getContacts handler:', error);

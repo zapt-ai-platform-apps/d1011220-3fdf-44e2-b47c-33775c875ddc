@@ -1,8 +1,9 @@
 import * as Sentry from '@sentry/node';
 import { authenticateUser } from './_apiUtils.js';
-import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
-import { contacts } from '../drizzle/schema.js';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import { contacts, contactNotes } from '../drizzle/schema.js';
+import { eq } from 'drizzle-orm';
 
 Sentry.init({
   dsn: process.env.VITE_PUBLIC_SENTRY_DSN,
@@ -26,23 +27,29 @@ export default async function handler(req, res) {
     const client = postgres(process.env.COCKROACH_DB_URL);
     const db = drizzle(client);
 
-    const { name, phone, email, birthday } = req.body;
+    const { contactId, note } = req.body;
 
-    const [contact] = await db
-      .insert(contacts)
-      .values({
-        userId: user.id,
-        name,
-        phone,
-        email,
-        birthday: birthday || null,
-      })
-      .returning();
+    // Verify that the contact belongs to the user
+    const contactExists = await db
+      .select()
+      .from(contacts)
+      .where(eq(contacts.id, contactId))
+      .then((results) => results[0]);
 
-    res.status(200).json({ message: 'Contact added successfully', contactId: contact.id });
+    if (!contactExists || contactExists.userId !== user.id) {
+      res.status(403).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    await db.insert(contactNotes).values({
+      contactId,
+      note,
+    });
+
+    res.status(200).json({ message: 'Note added successfully' });
   } catch (error) {
     Sentry.captureException(error);
-    console.error('Error in addContact handler:', error);
+    console.error('Error in addNote handler:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 }
